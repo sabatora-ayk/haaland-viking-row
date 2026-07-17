@@ -4,53 +4,213 @@
 // と、汎用イベント(input:tap / render:frame / effect:trigger / unlock:stage)のみを使用し、
 // Haaland/Vikingの見た目などゲーム固有の内容は全てこちらに置く。engine/は一切変更しない。
 //
-// [ビジュアル実装メモ] 実イラスト素材が無いため、canvas上で色ブロックを敷き詰める
-// 疑似ピクセルアート(drawPixelSprite)でキャラクターを表現している。
+// [ビジュアル実装メモ] 実イラスト素材が無いため、canvasのPath/ベジェ曲線による
+// 2Dカートゥーン描画(drawHaalandCharacter)でキャラクターを表現している。
 // 将来スプライト画像を導入する場合はこのファイルの描画処理を差し替えるだけでよい。
 
-// --- 疑似ピクセルアート用の小さなヘルパー -----------------------------------
-// matrixは文字の配列(各行が同じ長さ)。1文字1マスを表し、
-// legendでその文字をfillStyleの色にマッピングする。'.' は透明(未描画)。
-function drawPixelSprite(ctx, matrix, legend, originX, originY, pixelSize) {
-  for (let row = 0; row < matrix.length; row++) {
-    const line = matrix[row];
-    for (let col = 0; col < line.length; col++) {
-      const ch = line[col];
-      if (ch === '.') continue;
-      const color = legend[ch];
-      if (!color) continue;
-      ctx.fillStyle = color;
-      ctx.fillRect(
-        originX + col * pixelSize,
-        originY + row * pixelSize,
-        pixelSize,
-        pixelSize
-      );
-    }
-  }
-}
+// --- 2Dカートゥーンキャラクター描画 -----------------------------------------
+// [キャラクター改修メモ] 実在人物の写実的再現ではなく、長い金髪・大きく角張った顔・
+// 太い眉・眠そうな目・大きな口・怪物的に大きい肩という「特徴の組み合わせ」だけで
+// ファンメイド感を出す2Dカートゥーン表現。魔人ブウ的なミーム性は「丸みのある巨大
+// シルエット」「頬のピンクハイライト」「ステージ別オーラの色」という抽象化した要素
+// のみで取り入れており、衣装・アンテナ・顔そのもののコピーは一切行っていない。
+//
+// 全ての形状はローカル座標系(原点=肩の中心、上方向がマイナスY)で記述し、
+// 呼び出し側でtranslate/scaleして画面上の位置・大きさを決める。
+function drawHaalandCharacter(ctx, x, y, scale, opts) {
+  const p = opts.palette;
+  const { armAngle, hairSway, bobOffset, mood, eyeFlash, auraColor, victoryPose } = opts;
 
-// Haaland風キャラクターのピクセルマトリクス(12列×16行)。
-// 実在人物の写真的再現ではなく、長い金髪・大柄なシルエット・
-// 赤基調のユニフォームという特徴のみでファンメイド表現する。
-const PLAYER_MATRIX = [
-  '..HHHHHHHH..',
-  '.HHHHHHHHHH.',
-  '.HHSSSSSSHH.',
-  '.HSSSSSSSSH.',
-  '..SSSSSSSS..',
-  '..SSSSSSSS..',
-  '..JJJJJJJJ..',
-  '.JJJJJJJJJJ.',
-  'JJJJJJJJJJJJ',
-  'JJJJJJJJJJJJ',
-  'JJJjjjjJJJJJ',
-  '..WWWWWWWW..',
-  '..WWWWWWWW..',
-  '..SS....SS..',
-  '..SS....SS..',
-  '..BB....BB..'
-];
+  ctx.save();
+  ctx.translate(x, y + bobOffset);
+  ctx.scale(scale, scale);
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  // オーラ(炎・雷・オーロラ・黄金ステージのみ表示。通常時は無し)
+  if (auraColor) {
+    const aura = ctx.createRadialGradient(0, -14, 4, 0, -14, 50);
+    aura.addColorStop(0, auraColor);
+    aura.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(0, -14, 50, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 後ろ髪(肩にかかる長い金髪。左右非対称に揺らす)
+  ctx.fillStyle = p.hairShadow;
+  [-1, 1].forEach((side) => {
+    ctx.beginPath();
+    ctx.moveTo(side * 20, -28);
+    ctx.quadraticCurveTo(side * (34 + hairSway), 2, side * (26 + hairSway), 28);
+    ctx.quadraticCurveTo(side * 16, 20, side * 18, -10);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // Ballon d'Orステージ: 反対側の腕を高々と掲げる勝利ポーズ
+  if (victoryPose) {
+    ctx.strokeStyle = p.skinColor;
+    ctx.lineWidth = 11;
+    ctx.beginPath();
+    ctx.moveTo(-24, -4);
+    ctx.lineTo(-38, -40);
+    ctx.stroke();
+    ctx.fillStyle = p.skinColor;
+    ctx.beginPath();
+    ctx.arc(-38, -42, 7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 肩・上半身(赤ジャージ。怪物的に大きいシルエット)
+  ctx.fillStyle = p.jerseyColor;
+  ctx.beginPath();
+  ctx.moveTo(-38, 46);
+  ctx.quadraticCurveTo(-48, 4, -26, -10);
+  ctx.quadraticCurveTo(0, -19, 26, -10);
+  ctx.quadraticCurveTo(48, 4, 38, 46);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = p.outlineColor;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // ジャージのシャドウ(下部の陰影)
+  ctx.fillStyle = p.jerseyShadow;
+  ctx.beginPath();
+  ctx.moveTo(-38, 46);
+  ctx.quadraticCurveTo(0, 36, 38, 46);
+  ctx.lineTo(34, 32);
+  ctx.quadraticCurveTo(0, 22, -34, 32);
+  ctx.closePath();
+  ctx.fill();
+
+  // 白い差し色ストライプ + 背番号(特定クラブの公式デザインではない汎用配色)
+  ctx.strokeStyle = p.jerseyAccent;
+  ctx.lineWidth = 3;
+  [-1, 1].forEach((side) => {
+    ctx.beginPath();
+    ctx.moveTo(side * 27, -6);
+    ctx.lineTo(side * 31, 42);
+    ctx.stroke();
+  });
+  ctx.fillStyle = p.numberColor;
+  ctx.font = 'bold 24px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('9', 0, 18);
+
+  // オールを持つ腕(既存のオール描画と同じarmAngleで同期させ、漕ぐ動作をつなげる)
+  ctx.strokeStyle = p.skinColor;
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.moveTo(26, -4);
+  ctx.lineTo(26 + Math.cos(armAngle) * 26, -4 - Math.sin(armAngle) * 26);
+  ctx.stroke();
+
+  // 首
+  ctx.fillStyle = p.skinColor;
+  ctx.fillRect(-9, -18, 18, 16);
+
+  // 頭部(大きく、やや角張った輪郭にすることで怪物的な存在感を出す)
+  ctx.fillStyle = p.skinColor;
+  ctx.beginPath();
+  ctx.moveTo(-26, -22);
+  ctx.quadraticCurveTo(-32, -50, 0, -55);
+  ctx.quadraticCurveTo(32, -50, 26, -22);
+  ctx.quadraticCurveTo(28, 2, 13, 9);
+  ctx.quadraticCurveTo(0, 13, -13, 9);
+  ctx.quadraticCurveTo(-28, 2, -26, -22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = p.outlineColor;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 頬のピンクハイライト(コミカルな怪物感を出す抽象化された演出)
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = p.cheekColor;
+  [-18, 18].forEach((cx) => {
+    ctx.beginPath();
+    ctx.ellipse(cx, -6, 5.5, 3.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // 前髪(横に大きく流れる金髪。ステージ・タップに応じて揺れる)
+  ctx.fillStyle = p.hairColor;
+  ctx.beginPath();
+  ctx.moveTo(-30, -24);
+  ctx.quadraticCurveTo(-36, -54, -4, -58);
+  ctx.quadraticCurveTo(30, -58, 32, -28);
+  ctx.quadraticCurveTo(22 + hairSway, -44, 6, -32);
+  ctx.quadraticCurveTo(-4, -48, -15 + hairSway, -32);
+  ctx.quadraticCurveTo(-22, -19, -30, -24);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = p.outlineColor;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // 横に長く流れる毛束(サイドに払われた金髪。大きく目立たせる)
+  ctx.fillStyle = p.hairColor;
+  ctx.beginPath();
+  ctx.moveTo(30, -28);
+  ctx.quadraticCurveTo(46 + hairSway * 1.4, -14, 37 + hairSway * 1.4, 8);
+  ctx.quadraticCurveTo(28, -6, 26, -22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // 太い眉(特徴的な要素として強調)
+  ctx.fillStyle = p.browColor;
+  [-1, 1].forEach((side) => {
+    ctx.beginPath();
+    ctx.moveTo(side * 21, -26);
+    ctx.lineTo(side * 4, -28);
+    ctx.lineTo(side * 4, -22);
+    ctx.lineTo(side * 20, -20);
+    ctx.closePath();
+    ctx.fill();
+  });
+
+  // 目(眠そう・無表情気味。演出ステージでは強くフラッシュする)
+  const eyeH = eyeFlash ? 5.5 : 2.6;
+  ctx.fillStyle = eyeFlash ? '#ffffff' : p.eyeColor;
+  [-13, 13].forEach((ex) => {
+    ctx.beginPath();
+    ctx.ellipse(ex, -14, 5.2, eyeH, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  if (eyeFlash) {
+    ctx.fillStyle = auraColor || '#ffd54a';
+    [-13, 13].forEach((ex) => {
+      ctx.beginPath();
+      ctx.arc(ex, -14, 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // 口(通常時は無表情な一文字、炎/雷/黄金ステージでは力強く開いた口)
+  const intense = mood === 'fire' || mood === 'thunder' || mood === 'golden';
+  ctx.strokeStyle = p.mouthColor;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  if (intense) {
+    ctx.moveTo(-10, 2);
+    ctx.quadraticCurveTo(0, 11, 10, 2);
+    ctx.quadraticCurveTo(0, 4, -10, 2);
+    ctx.fillStyle = p.mouthColor;
+    ctx.fill();
+  } else {
+    ctx.moveTo(-9, 2);
+    ctx.quadraticCurveTo(0, mood === 'aurora' ? 5 : 3, 9, 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
 
 // 一定間隔で生成する固定スター配列(毎フレーム乱数生成すると点滅してしまうため
 // シーン開始時に一度だけ生成し、以降は同じ座標を使い回す)
@@ -96,6 +256,7 @@ export function registerRenderLayers(engine, config) {
   });
   let flashDurationMs = 200;
   let flashElapsed = 0;
+  let currentTheme = visual.backgroundStages[0]; // background/ship-and-player両レイヤーで共有
 
   const maxThreshold = Math.max(...config.unlock.stages.map((s) => s.threshold));
 
@@ -106,6 +267,7 @@ export function registerRenderLayers(engine, config) {
     const speedRatio = Math.min(lastVelocity / maxThreshold, 1);
 
     const theme = visual.backgroundStages[unlockedStage] || visual.backgroundStages[0];
+    currentTheme = theme;
 
     const grad = ctx.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, theme.skyTop);
@@ -279,7 +441,7 @@ export function registerRenderLayers(engine, config) {
     ctx.arc(bowX + 18, bowY - 30, 3, 0, Math.PI * 2);
     ctx.fill();
 
-    // オール: タップ速度に応じて回転速度と振れ幅が増す(漕いでいる感を表現)
+    // オール(木製シャフト): タップ速度に応じて回転速度と振れ幅が増す(漕いでいる感を表現)
     const oarSpeed = 4 + speedRatio * 18;
     const oarAngle = Math.sin(performance.now() / (1000 / oarSpeed)) * (0.5 + speedRatio * 0.5);
     const oarPivotX = shipX;
@@ -291,20 +453,30 @@ export function registerRenderLayers(engine, config) {
     ctx.lineTo(oarPivotX + Math.cos(oarAngle) * 56, oarPivotY - Math.sin(oarAngle) * 56 - 10);
     ctx.stroke();
 
-    // プレイヤー(疑似ピクセルアート。高速時はわずかに拡大して迫力を出す)
-    const pixelSize = visual.player.pixelSize * (1 + speedRatio * 0.15);
-    const playerW = PLAYER_MATRIX[0].length * pixelSize;
-    const playerH = PLAYER_MATRIX.length * pixelSize;
-    const legend = {
-      H: visual.player.hairColor,
-      S: visual.player.skinColor,
-      J: visual.player.jerseyColor,
-      j: visual.player.jerseyShadow,
-      W: visual.player.shortsColor,
-      B: visual.player.bootsColor
-    };
-    drawPixelSprite(ctx, PLAYER_MATRIX, legend, oarPivotX - playerW / 2, oarPivotY - playerH + 6, pixelSize);
+    // Haaland風2Dカートゥーンキャラクター(顔と上半身を大きく強調)。
+    // ステージ解放が進むほどオーラ・表情・スケールが変化し、怪物的な存在感を増す。
+    const stageScale = visual.player.stageScale[unlockedStage] ?? 1;
+    const playerScale = visual.player.baseScale * stageScale * (1 + speedRatio * 0.06);
+    const hairSway = Math.sin(performance.now() / 300) * (2 + speedRatio * 6);
+    const bobOffset = Math.sin(performance.now() / 450) * (2 + speedRatio * 3);
+    const auraColor = visual.player.auraColors[unlockedStage] || null;
+    const mood = currentTheme.mood;
+    // キャラクターのローカル座標(26, -4)がオールの持ち手(oarPivot)と一致するよう原点を逆算する
+    const charOriginX = oarPivotX - 26 * playerScale;
+    const charOriginY = oarPivotY + 4 * playerScale;
+
+    drawHaalandCharacter(ctx, charOriginX, charOriginY, playerScale, {
+      armAngle: oarAngle,
+      hairSway,
+      bobOffset,
+      mood,
+      eyeFlash: mood === 'thunder',
+      auraColor,
+      victoryPose: unlockedStage >= 6,
+      palette: visual.player
+    });
   }, 1);
+
 
   // レイヤー2: パーティクル
   engine.registerLayer('particles', (ctx) => {

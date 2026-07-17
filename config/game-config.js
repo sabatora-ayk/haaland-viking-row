@@ -44,13 +44,31 @@ export default {
     },
 
     player: {
+      // [2Dカートゥーン改修] 疑似ピクセルアート(pixelSize)は廃止し、
+      // ベクター描画用の色パレット・ステージ別スケール・オーラ色をデータ駆動で定義する。
       hairColor: '#f5d36a',
+      hairShadow: '#d9ad3f',
       skinColor: '#f3c98b',
+      browColor: '#3a2410',
+      eyeColor: '#2a1a0a',
+      mouthColor: '#5a1010',
       jerseyColor: '#c8102e',
       jerseyShadow: '#8a0b1f',
-      shortsColor: '#f4f8ff',
-      bootsColor: '#2b1c10',
-      pixelSize: 4
+      jerseyAccent: '#f4f8ff',
+      numberColor: '#ffffff',
+      cheekColor: '#ff8fa3',
+      outlineColor: '#241206',
+      baseScale: 1.15,
+      // ステージ解放が進むほど怪物的に大きくなる(0=解放前の通常状態)
+      stageScale: { 0: 1, 1: 1, 2: 1.05, 3: 1.12, 4: 1.18, 5: 1.24, 6: 1.4 },
+      // ステージごとのオーラ色(炎=赤橙 / 雷=白 / オーロラ=紫 / 黄金=金)。
+      // 未定義のステージ(0,1,2)ではオーラを表示しない。
+      auraColors: {
+        3: 'rgba(255,110,40,0.55)',
+        4: 'rgba(255,255,255,0.5)',
+        5: 'rgba(160,120,255,0.4)',
+        6: 'rgba(255,213,74,0.6)'
+      }
     },
 
     ui: {
