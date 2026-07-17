@@ -85,6 +85,39 @@ haaland-viking-row/
 3. `src/scene.js`, `src/systems/` のルールを必要に応じて調整
 4. `engine/` は無変更で再利用
 
+## ビジュアル/UI大改修（v0.2.0）
+
+タイトルを **HAALAND VIKING ROW** としてブランディングを強化し、以下を実装した。
+
+### 変更したファイルと変更内容
+
+| ファイル | 変更内容 |
+|---|---|
+| `config/game-config.js` | `visual`セクションを大幅拡張。ステージ別背景テーマ(`backgroundStages`)、船(ドラゴンヘッド・盾・航跡色)、プレイヤー(髪・肌・ユニフォーム各色)、UI文言(ロゴ・TAP TO ROW・BALLON D'OR)を追加。`effects`各ステージに`flash`(画面フラッシュ)を追加。`particles.tapSplash`を追加 |
+| `src/scene.js` | 全面改修。疑似ピクセルアート(`drawPixelSprite`)によるHaaland風キャラクター描画、ドラゴンヘッド+盾+航跡付きロングシップ、ステージ別背景(フィヨルド→速度線→炎グロー→オーロラ+星→黄金)、タップ速度連動のオール速度・速度ライン、画面フラッシュレイヤーを追加 |
+| `src/ui.js` | 全面改修。タイトルロゴ、DISTANCE/COMBO/ROW POWERバーのスコアボード、常設TAP TO ROWバナー、タップ時フラッシュ+スケール演出、BALLON D'Orフィナーレバナーを追加。`engine/ui-manager.js`の汎用HUD(buildHud)は使用せず完全に独自UIへ置き換え |
+| `src/game.js` | `buildGameUI`呼び出しへの差し替え、`tap-feedback-system`の登録追加、BGM再生を最初のタップまで遅延する方式に変更 |
+| `src/main.js` | 開始プロンプトのゲート処理を廃止し、即座に`startGame`を呼ぶ形に簡素化(TAP TO ROWバナーが常設UI化したため) |
+| `src/systems/camera-system.js` | `effect:trigger`イベントのペイロードに`flash`フィールドを追加(engine側は未知のフィールドとして無視するため後方互換) |
+| `src/systems/tap-feedback-system.js` | **新規**。毎タップごとの水しぶきフィードバックを担当 |
+| `style.css` | 全面改修。タイトルロゴ・スコアボード・TAP TO ROW・タップフラッシュ・BALLON D'OR演出のスタイル追加、エンド画面をノルウェー配色に再配色、`pointer-events`をボタンのみに限定するよう整理 |
+| `index.html` | `<title>`とmeta descriptionを更新 |
+
+`engine/`配下は一切変更していない(diffで完全一致を確認済み)。
+
+### 設計原則の遵守確認
+
+- `engine/`にHaaland/Viking/ship/oar等のゲーム固有語が存在しないことを確認済み
+- `engine/`が`config/game-config.js`をimportしていないことを確認済み
+- `src/systems/`が`engine/`内部モジュールを直接importしていないことを確認済み
+- 新しい画面フラッシュ演出は、`effect:trigger`イベントに`flash`フィールドを追加し、`src/scene.js`が追加の購読者として読むことで実現。`engine/effect.js`・`engine/particle.js`は未知のフィールドを無視するため後方互換が保たれる
+- ROW POWERバー・タップフラッシュは、既存の汎用イベント(`input:tap` / `render:frame`)を`src/ui.js`が新たに購読することで実現。engineへの変更は不要だった
+
+### 実装上の判断
+
+- キャラクター・船は実素材が無いため、引き続きcanvas描画(疑似ピクセルアート)で表現。実在人物の写真的再現はせず、長い金髪・大柄なシルエット・赤基調ユニフォームという特徴のみでファンメイド表現とした
+- BGM自動再生制限を回避するため、TAP TO ROWバナーによる明示的な開始ゲートを廃止し、最初のタップで遅延再生する方式に変更(モバイルSafari/Chrome双方の自動再生ポリシーに対応)
+
 ## 実装レビュー結果（重大2件を修正済み）
 
 - **[修正済/重大] BGM多重再生・リーク**: `TapEngine.stop()`がAudioを止めておらず、

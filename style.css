@@ -2,6 +2,7 @@
   --tap-ui-primary: #ffd54a;
   --tap-ui-bg: #0b1a2b;
   --tap-ui-text: #ffffff;
+  --hvr-red: #c8102e;
 }
 
 * {
@@ -40,48 +41,214 @@ html, body {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
-#ui-root > * {
+/* ボタンなど明示的に操作可能な要素だけタップを受け付ける。
+   それ以外(ロゴ・スコアボード・バナー等)はcanvasへタップを通過させる。 */
+#ui-root button {
   pointer-events: auto;
 }
 
-.tap-engine-hud {
+/* ================= Haaland Viking Row 専用UI ================= */
+
+.hvr-ui {
   position: absolute;
-  top: max(env(safe-area-inset-top, 12px), 12px);
-  left: 12px;
-  right: 12px;
-  display: flex;
-  gap: 16px;
-  color: var(--tap-ui-text);
-  font-weight: bold;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+  inset: 0;
   pointer-events: none;
+  transition: opacity 0.4s ease;
 }
 
-.tap-engine-stat {
+.hvr-ui-dimmed {
+  opacity: 0.25;
+}
+
+/* --- タイトルロゴ --- */
+.hvr-logo {
+  position: absolute;
+  top: max(env(safe-area-inset-top, 10px), 10px);
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 64px;
+  line-height: 1;
+  text-shadow:
+    2px 2px 0 var(--hvr-red),
+    -2px 2px 0 var(--hvr-red),
+    2px -2px 0 var(--hvr-red),
+    -2px -2px 0 var(--hvr-red),
+    0 4px 8px rgba(0, 0, 0, 0.5);
 }
 
-.tap-engine-stat-label {
-  font-size: 11px;
-  opacity: 0.8;
+.hvr-logo-line1,
+.hvr-logo-line2 {
+  font-family: "Courier New", monospace;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 4px;
 }
 
-.tap-engine-stat-value {
-  font-size: 20px;
+.hvr-logo-line1 {
+  font-size: clamp(20px, 7vw, 32px);
+}
+
+.hvr-logo-line2 {
+  font-size: clamp(14px, 4.5vw, 20px);
+  color: var(--tap-ui-primary);
+  letter-spacing: 6px;
+  margin-top: 2px;
+}
+
+/* --- スコアボード --- */
+.hvr-scoreboard {
+  position: absolute;
+  top: max(env(safe-area-inset-top, 10px), 10px);
+  left: 10px;
+  right: 10px;
+  margin-top: 56px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: "Courier New", monospace;
+  color: var(--tap-ui-text);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+  transform-origin: left top;
+}
+
+.hvr-scoreboard-pulse {
+  animation: hvr-pulse 220ms ease-out;
+}
+
+.hvr-stat-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 70px;
+}
+
+.hvr-stat-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  opacity: 0.75;
+}
+
+.hvr-stat-value {
+  font-size: 18px;
+  font-weight: 700;
   color: var(--tap-ui-primary);
 }
 
-.tap-engine-fps {
-  margin-left: auto;
-  opacity: 0.5;
+.hvr-stat-block-combo .hvr-stat-value {
+  color: var(--hvr-red);
+  -webkit-text-stroke: 0.5px #ffffff;
 }
 
-.tap-engine-start-prompt,
+.hvr-power {
+  flex: 1;
+  min-width: 90px;
+}
+
+.hvr-power-label {
+  font-size: 9px;
+  letter-spacing: 2px;
+  opacity: 0.75;
+  display: block;
+  margin-bottom: 3px;
+}
+
+.hvr-power-bar {
+  width: 100%;
+  height: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.hvr-power-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--hvr-red), var(--tap-ui-primary));
+  transition: width 120ms linear;
+}
+
+/* --- 常設 TAP TO ROW バナー --- */
+.hvr-tap-prompt {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(env(safe-area-inset-bottom, 18px), 18px);
+  text-align: center;
+  font-family: "Courier New", monospace;
+  font-weight: 900;
+  font-size: clamp(18px, 6vw, 28px);
+  letter-spacing: 4px;
+  color: #ffffff;
+  text-shadow: 0 0 10px var(--tap-ui-primary), 0 3px 6px rgba(0, 0, 0, 0.7);
+  animation: hvr-tap-prompt-pulse 1.3s ease-in-out infinite;
+}
+
+/* --- タップ時の全画面フラッシュ --- */
+.hvr-tap-flash {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.25);
+  opacity: 0;
+}
+
+.hvr-tap-flash-active {
+  animation: hvr-flash-fade 180ms ease-out;
+}
+
+/* --- BALLON D'OR フィナーレバナー --- */
+.hvr-ballon-dor {
+  position: absolute;
+  top: 42%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: "Courier New", monospace;
+  font-weight: 900;
+  font-size: clamp(26px, 10vw, 46px);
+  letter-spacing: 3px;
+  color: var(--tap-ui-primary);
+  text-shadow:
+    0 0 12px rgba(255, 213, 74, 0.9),
+    0 0 30px rgba(255, 213, 74, 0.6),
+    0 4px 0 #8a5a00;
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
+}
+
+.hvr-ballon-dor-active {
+  animation: hvr-ballon-dor-pop 900ms cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
+}
+
+@keyframes hvr-pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+@keyframes hvr-tap-prompt-pulse {
+  0%, 100% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.55; transform: translateY(-4px); }
+}
+
+@keyframes hvr-flash-fade {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes hvr-ballon-dor-pop {
+  0% { opacity: 0; transform: scale(0.6); }
+  60% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* ================= エンド画面(engine/ui-manager.jsが生成する汎用DOMのスタイル) ================= */
+
 .tap-engine-end-screen {
   position: absolute;
   inset: 0;
@@ -90,21 +257,17 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  background: rgba(11, 26, 43, 0.85);
+  background: rgba(11, 26, 43, 0.9);
   color: var(--tap-ui-text);
   text-align: center;
   padding: 24px;
-}
-
-.tap-engine-start-prompt {
-  font-size: 24px;
-  font-weight: bold;
-  animation: tap-engine-pulse 1.4s ease-in-out infinite;
+  font-family: "Courier New", monospace;
 }
 
 .tap-engine-end-screen h2 {
   color: var(--tap-ui-primary);
   margin: 0 0 8px;
+  letter-spacing: 2px;
 }
 
 .tap-engine-end-stat {
@@ -114,15 +277,12 @@ html, body {
 .tap-engine-button {
   margin-top: 8px;
   padding: 10px 28px;
-  border: none;
+  border: 2px solid #ffffff;
   border-radius: 24px;
-  background: var(--tap-ui-primary);
-  color: #1a1200;
+  background: var(--hvr-red);
+  color: #ffffff;
   font-weight: bold;
   font-size: 15px;
-}
-
-@keyframes tap-engine-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  font-family: inherit;
+  letter-spacing: 1px;
 }

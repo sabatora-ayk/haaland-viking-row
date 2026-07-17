@@ -1,43 +1,63 @@
 // config/game-config.js
-// 「Haaland Viking Row」のゲーム固有データを一元管理するファイル。
+// 「HAALAND VIKING ROW」のゲーム固有データを一元管理するファイル。
 // TapEngine本体(engine/配下)はこのファイルの内容を一切知らない。
-// 別タイトルを作る際はこのファイルとassets/, src/systemsの中身を
-// 差し替えるだけで成立する設計になっている。
 //
-// [MVP実装メモ]
-// 設計書v2ではplayer/shipにスプライト画像パスを持たせる想定だったが、
-// 実素材（イラスト・音源）が用意できないMVP段階のため、見た目は
-// canvasのベクター描画(色・サイズのみconfig駆動)で代替している。
-// 実素材が用意でき次第、visual.player/visual.shipにsprite関連の
-// フィールドを追加し、src/scene.jsの描画関数を差し替えるだけで
-// 移行できる（データ駆動の構造自体は変更不要）。
+// [v2ビジュアル改修] キャラクター・船・背景の見た目データを大幅拡張。
+// 実イラスト素材は依然として無いため、canvas上の疑似ピクセルアート
+// (色ブロック描画)で表現する。色・サイズは全てここで一元管理する。
 
 export default {
   meta: {
-    title: 'Haaland Viking Row',
-    version: '0.1.0-mvp'
+    title: 'HAALAND VIKING ROW',
+    subtitle: 'A Fan-Made Viking Tap Saga',
+    version: '0.2.0-visual'
   },
 
-  // 見た目（色・サイズ）。実素材導入時はここにsprite系フィールドを追加する
+  // 見た目データ。実素材導入時はここにsprite関連フィールドを追加する
   visual: {
-    background: {
-      skyTop: '#0b1a2b',
-      skyBottom: '#16324f',
-      sea: '#12293f',
-      mountains: '#0a1c2e',
-      auroraStartStage: 5,           // このstageId以上でオーロラを表示
-      auroraColors: ['#7effc0', '#7ecbff', '#c07eff']
+    // ステージ(0=解放前の通常状態, 1〜6=unlock.stagesのstageIdに対応)ごとの背景テーマ
+    backgroundStages: {
+      0: { skyTop: '#123a5e', skyBottom: '#1c5c86', sea: '#0d3b57', mood: 'calm' },
+      1: { skyTop: '#123a5e', skyBottom: '#1c5c86', sea: '#0d3b57', mood: 'calm' },
+      2: { skyTop: '#0f2f4d', skyBottom: '#1a4f75', sea: '#0b3450', mood: 'wind' },
+      3: { skyTop: '#3a0f0f', skyBottom: '#7a2a12', sea: '#2a1210', mood: 'fire' },
+      4: { skyTop: '#0a0a1a', skyBottom: '#1a1a30', sea: '#0a1420', mood: 'thunder' },
+      5: { skyTop: '#050a1e', skyBottom: '#0a1730', sea: '#04101c', mood: 'aurora' },
+      6: { skyTop: '#241200', skyBottom: '#5a3200', sea: '#0a1420', mood: 'golden' }
     },
+    mountains: '#08182a',
+    mountainSnow: '#eaf3ff',
+    auroraColors: ['#7effc0', '#7ecbff', '#c07eff'],
+    starColor: '#f4f8ff',
+
     ship: {
-      color: '#5a3b1e',
-      width: 140,
-      height: 40
+      hullColor: '#5a3b1e',
+      hullDarkColor: '#3d2712',
+      deckColor: '#7a5230',
+      dragonColor: '#4f7a3d',
+      dragonEyeColor: '#ffd54a',
+      shieldColors: ['#c8102e', '#f4f8ff', '#ffd54a'],
+      oarColor: '#4a2f16',
+      wakeColor: 'rgba(244, 248, 255, 0.5)',
+      width: 190,
+      height: 50
     },
+
     player: {
-      bodyColor: '#1e5bff',   // ユニフォーム風の色
-      skinColor: '#f3c98b',
       hairColor: '#f5d36a',
-      size: 36
+      skinColor: '#f3c98b',
+      jerseyColor: '#c8102e',
+      jerseyShadow: '#8a0b1f',
+      shortsColor: '#f4f8ff',
+      bootsColor: '#2b1c10',
+      pixelSize: 4
+    },
+
+    ui: {
+      logoLine1: 'HAALAND',
+      logoLine2: 'VIKING ROW',
+      tapPromptText: 'TAP TO ROW',
+      ballonDorText: "BALLON D'OR"
     }
   },
 
@@ -46,28 +66,29 @@ export default {
     shake: {
       default: { intensity: 2, duration: 150 },
       strong: { intensity: 6, duration: 300 },
-      extreme: { intensity: 14, duration: 700 }
+      extreme: { intensity: 16, duration: 800 }
     }
   },
 
-  // パーティクルのプリセット。effectsセクションからkey名で参照される
+  // パーティクルのプリセット。effectsセクション/タップフィードバックから参照される
   particles: {
+    tapSplash: { color: '#8ecbff', count: 6, life: 350, size: 2 },
     splash: { color: '#8ecbff', count: 18, life: 500 },
-    fire: { color: '#ff6a2b', count: 26, life: 700 },
-    thunder: { color: '#f5f56a', count: 14, life: 350 },
+    fire: { color: '#ff6a2b', count: 30, life: 700 },
+    thunder: { color: '#f5f56a', count: 16, life: 350 },
     aurora: { color: '#7effc0', count: 30, life: 1100 },
-    ballonDor: { color: '#ffd54a', count: 70, life: 1800 }
+    ballonDor: { color: '#ffd54a', count: 90, life: 2000 }
   },
 
-  // unlock.stagesのstageIdごとに、どのカメラ揺れ・パーティクルを使うかを定義。
-  // 演出の追加・変更はこのオブジェクトとcamera.shake/particlesの調整のみで完結する。
+  // unlock.stagesのstageIdごとに、カメラ揺れ・パーティクル・画面フラッシュを定義。
+  // flashは任意(省略可)。演出の追加・変更はこのオブジェクトの調整のみで完結する。
   effects: {
     1: { cameraShake: 'default', particleKey: 'splash' },
     2: { cameraShake: 'default', particleKey: 'splash' },
-    3: { cameraShake: 'strong', particleKey: 'fire' },
-    4: { cameraShake: 'strong', particleKey: 'thunder' },
+    3: { cameraShake: 'strong', particleKey: 'fire', flash: { color: 'rgba(255,90,40,0.35)', durationMs: 220 } },
+    4: { cameraShake: 'strong', particleKey: 'thunder', flash: { color: 'rgba(255,255,255,0.55)', durationMs: 120 } },
     5: { cameraShake: 'default', particleKey: 'aurora' },
-    6: { cameraShake: 'extreme', particleKey: 'ballonDor' }
+    6: { cameraShake: 'extreme', particleKey: 'ballonDor', flash: { color: 'rgba(255,213,74,0.5)', durationMs: 400 } }
   },
 
   // タップ速度(tap/sec)に応じた演出解放の閾値
@@ -87,8 +108,6 @@ export default {
     distancePerTap: 1.2,
     comboResetMs: 800,
     comboMultiplierStep: 0.1,
-    // [MVP実装メモ] 元仕様に明示的な終了条件が無かったため、
-    // 遊べる完成版として最小限のセッション時間を追加した。
     sessionDurationMs: 30000
   },
 
@@ -108,12 +127,12 @@ export default {
   ui: {
     color: { primary: '#ffd54a', background: '#0b1a2b', text: '#ffffff' },
     text: {
-      distance: 'Distance',
-      combo: 'Combo',
+      distance: 'DISTANCE',
+      combo: 'COMBO',
       bestScore: 'Best Score',
       replay: 'Replay',
       share: 'Share',
-      tapToStart: 'Tap to Row!'
+      rowPower: 'ROW POWER'
     },
     showFpsInDev: true
   },
