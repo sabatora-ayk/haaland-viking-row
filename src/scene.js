@@ -4,22 +4,29 @@
 // と、汎用イベント(input:tap / render:frame / effect:trigger / unlock:stage)のみを使用し、
 // Haaland/Vikingの見た目などゲーム固有の内容は全てこちらに置く。engine/は一切変更しない。
 //
+// [エスカレーション改修] ステージ演出は「最新ステージのmoodで丸ごと切替」ではなく、
+// unlockedStageの閾値による累積型にした。stage>=3で炎、stage>=4で雷、stage>=5で
+// オーロラ、stage>=6で黄金――というように、上位ステージに到達しても下位の演出は
+// 消さず重ね描きすることで「画面がどんどん壊れていく」体験を作っている。
+//
 // [ビジュアル実装メモ] 実イラスト素材が無いため、canvasのPath/ベジェ曲線による
 // 2Dカートゥーン描画(drawHaalandCharacter)でキャラクターを表現している。
 // 将来スプライト画像を導入する場合はこのファイルの描画処理を差し替えるだけでよい。
 
 // --- 2Dカートゥーンキャラクター描画 -----------------------------------------
 // [キャラクター改修メモ] 実在人物の写実的再現ではなく、長い金髪・大きく角張った顔・
-// 太い眉・眠そうな目・大きな口・怪物的に大きい肩という「特徴の組み合わせ」だけで
+// ブロンドの太眉・青い目・大きな口・怪物的に大きい肩という「特徴の組み合わせ」だけで
 // ファンメイド感を出す2Dカートゥーン表現。魔人ブウ的なミーム性は「丸みのある巨大
 // シルエット」「頬のピンクハイライト」「ステージ別オーラの色」という抽象化した要素
 // のみで取り入れており、衣装・アンテナ・顔そのもののコピーは一切行っていない。
+// intensity(0〜1、ステージ進行に比例)で眉の角度・目の開き方を連続的に変化させ、
+// 「タップするほど必死になっていく」表情のエスカレーションを表現する。
 //
 // 全ての形状はローカル座標系(原点=肩の中心、上方向がマイナスY)で記述し、
 // 呼び出し側でtranslate/scaleして画面上の位置・大きさを決める。
 function drawHaalandCharacter(ctx, x, y, scale, opts) {
   const p = opts.palette;
-  const { armAngle, hairSway, bobOffset, mood, eyeFlash, auraColor, victoryPose } = opts;
+  const { armAngle, hairSway, bobOffset, intensity, eyeFlash, auraColor, victoryPose, mouthIntense } = opts;
 
   ctx.save();
   ctx.translate(x, y + bobOffset);
@@ -163,41 +170,49 @@ function drawHaalandCharacter(ctx, x, y, scale, opts) {
   ctx.fill();
   ctx.stroke();
 
-  // 太い眉(特徴的な要素として強調)
+  // 太いブロンドの眉(intensityが上がるほど吊り上がり、必死さを表現)
+  const browTilt = intensity * 4;
   ctx.fillStyle = p.browColor;
   [-1, 1].forEach((side) => {
     ctx.beginPath();
-    ctx.moveTo(side * 21, -26);
+    ctx.moveTo(side * 21, -26 - browTilt);
     ctx.lineTo(side * 4, -28);
     ctx.lineTo(side * 4, -22);
-    ctx.lineTo(side * 20, -20);
+    ctx.lineTo(side * 20, -20 - browTilt * 0.6);
     ctx.closePath();
     ctx.fill();
   });
 
-  // 目(眠そう・無表情気味。演出ステージでは強くフラッシュする)
-  const eyeH = eyeFlash ? 5.5 : 2.6;
-  ctx.fillStyle = eyeFlash ? '#ffffff' : p.eyeColor;
+  // 目(白目+青い虹彩。眠そうな半開きが基本だが、intensityが上がるほど見開く)
+  const eyeH = eyeFlash ? 5.5 : 2.4 + intensity * 2.2;
   [-13, 13].forEach((ex) => {
+    ctx.fillStyle = p.eyeWhiteColor;
     ctx.beginPath();
-    ctx.ellipse(ex, -14, 5.2, eyeH, 0, 0, Math.PI * 2);
+    ctx.ellipse(ex, -14, 5.4, eyeH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = eyeFlash ? '#ffffff' : p.eyeColor;
+    ctx.beginPath();
+    ctx.arc(ex, -14, Math.min(eyeH, 3.2), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = p.eyePupilColor;
+    ctx.beginPath();
+    ctx.arc(ex, -14, Math.min(eyeH, 1.6), 0, Math.PI * 2);
     ctx.fill();
   });
   if (eyeFlash) {
     ctx.fillStyle = auraColor || '#ffd54a';
     [-13, 13].forEach((ex) => {
       ctx.beginPath();
-      ctx.arc(ex, -14, 2, 0, Math.PI * 2);
+      ctx.arc(ex, -14, 1.4, 0, Math.PI * 2);
       ctx.fill();
     });
   }
 
-  // 口(通常時は無表情な一文字、炎/雷/黄金ステージでは力強く開いた口)
-  const intense = mood === 'fire' || mood === 'thunder' || mood === 'golden';
+  // 口(通常は無表情な一文字、炎/雷/黄金ステージでは力強く開いた口)
   ctx.strokeStyle = p.mouthColor;
   ctx.lineWidth = 2.5;
   ctx.beginPath();
-  if (intense) {
+  if (mouthIntense) {
     ctx.moveTo(-10, 2);
     ctx.quadraticCurveTo(0, 11, 10, 2);
     ctx.quadraticCurveTo(0, 4, -10, 2);
@@ -205,7 +220,7 @@ function drawHaalandCharacter(ctx, x, y, scale, opts) {
     ctx.fill();
   } else {
     ctx.moveTo(-9, 2);
-    ctx.quadraticCurveTo(0, mood === 'aurora' ? 5 : 3, 9, 2);
+    ctx.quadraticCurveTo(0, 3 + intensity * 3, 9, 2);
     ctx.stroke();
   }
 
@@ -227,14 +242,34 @@ function createStarField(count) {
   return stars;
 }
 
+// 稲妻のジグザグ形状を1本生成する(発生のたびに形を変えて単調にならないようにする)
+function buildLightningBolt(w, h) {
+  const startX = w * (0.15 + Math.random() * 0.7);
+  const points = [{ x: startX, y: 0 }];
+  let x = startX;
+  let y = 0;
+  const segments = 6 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < segments; i++) {
+    y += h * 0.5 * (1 / segments);
+    x += (Math.random() - 0.5) * 40;
+    points.push({ x, y });
+  }
+  return points;
+}
+
 export function registerRenderLayers(engine, config) {
   const { visual } = config;
-  const stars = createStarField(60);
+  const stars = createStarField(70);
 
   let unlockedStage = 0;
   let lastVelocity = 0; // input:tapイベントから取得する現在のタップ速度(減衰させて使う)
   let flashAlpha = 0;
   let flashColor = 'rgba(255,255,255,0)';
+  let flashDurationMs = 200;
+  let flashElapsed = 0;
+  let boltPoints = null;
+  let boltAlpha = 0;
+  const oarAngleHistory = [0, 0, 0]; // モーションブラー用の直近オール角度
 
   engine.bus.on('unlock:stage', ({ stageId }) => {
     unlockedStage = stageId;
@@ -244,8 +279,10 @@ export function registerRenderLayers(engine, config) {
     lastVelocity = velocity;
   });
 
-  // camera-system.jsが'effect:trigger'に追加したflashフィールドを読み、
-  // 画面フラッシュのアニメーション状態を更新する(engine側はこのフィールドを読まない)
+  // camera-system.js / weather-system.jsが'effect:trigger'に追加した
+  // flash / boltフィールドを読み、画面フラッシュ・稲妻の描画状態を更新する。
+  // engine/effect.js・engine/particle.jsはcameraShakeParams/particleParams
+  // しか読まないため、これらの追加フィールドはengine側に一切影響しない。
   engine.bus.on('effect:trigger', (payload) => {
     if (payload && payload.flash) {
       flashAlpha = 1;
@@ -253,21 +290,21 @@ export function registerRenderLayers(engine, config) {
       flashDurationMs = payload.flash.durationMs || 200;
       flashElapsed = 0;
     }
+    if (payload && payload.bolt) {
+      boltAlpha = 1;
+      boltPoints = null; // 実座標は背景レイヤー描画時にw/hを使って生成する
+    }
   });
-  let flashDurationMs = 200;
-  let flashElapsed = 0;
-  let currentTheme = visual.backgroundStages[0]; // background/ship-and-player両レイヤーで共有
 
   const maxThreshold = Math.max(...config.unlock.stages.map((s) => s.threshold));
 
-  // レイヤー0: 背景(空・山・海・ステージ別演出)
+  // レイヤー0: 背景(空・山・海・累積型ステージ演出)
   engine.registerLayer('background', (ctx, dt, w, h) => {
     // タップが無い間は速度を減衰させ、「今の勢い」を疑似的に表現する
     lastVelocity = Math.max(0, lastVelocity - (dt / 1000) * 3);
     const speedRatio = Math.min(lastVelocity / maxThreshold, 1);
 
     const theme = visual.backgroundStages[unlockedStage] || visual.backgroundStages[0];
-    currentTheme = theme;
 
     const grad = ctx.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, theme.skyTop);
@@ -275,8 +312,8 @@ export function registerRenderLayers(engine, config) {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
 
-    // 星(オーロラ/Ballon d'Orステージで表示)
-    if (theme.mood === 'aurora' || theme.mood === 'golden') {
+    // 星(ステージ5以降。累積型なので雷ステージを経ても消えない)
+    if (unlockedStage >= 5) {
       stars.forEach((star) => {
         const twinkle = 0.5 + 0.5 * Math.sin(performance.now() / 500 + star.phase);
         ctx.globalAlpha = twinkle * 0.8;
@@ -286,6 +323,35 @@ export function registerRenderLayers(engine, config) {
         ctx.fill();
       });
       ctx.globalAlpha = 1;
+    }
+
+    // 雷雲(ステージ4以降、常時薄く漂う)
+    if (unlockedStage >= 4) {
+      ctx.fillStyle = visual.lightning.cloudColor;
+      for (let i = 0; i < 4; i++) {
+        const cx = ((performance.now() / 4000 + i * 0.27) % 1.3) * w - w * 0.15;
+        const cy = h * (0.08 + i * 0.06);
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, 70, 18, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 稲妻本体(effect:triggerのboltフィールドで発火。短時間だけ表示して消える)
+    if (boltAlpha > 0) {
+      if (!boltPoints) boltPoints = buildLightningBolt(w, h);
+      boltAlpha = Math.max(0, boltAlpha - dt / 220);
+      ctx.strokeStyle = visual.lightning.boltColor;
+      ctx.globalAlpha = boltAlpha;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      boltPoints.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      if (boltAlpha <= 0) boltPoints = null;
     }
 
     // 山のシルエット(雪化粧付き)
@@ -312,16 +378,16 @@ export function registerRenderLayers(engine, config) {
       ctx.fill();
     });
 
-    // 炎ステージ: 船周辺に赤い光暈(グロー)
-    if (theme.mood === 'fire') {
-      const glow = ctx.createRadialGradient(w * 0.3, h * 0.75, 10, w * 0.3, h * 0.75, 160);
-      glow.addColorStop(0, 'rgba(255,110,40,0.35)');
+    // 炎ステージ(ステージ3以降、常時。上位ステージに進んでも消えない)
+    if (unlockedStage >= 3) {
+      const glow = ctx.createRadialGradient(w * 0.3, h * 0.75, 10, w * 0.3, h * 0.75, 170);
+      glow.addColorStop(0, 'rgba(255,110,40,0.32)');
       glow.addColorStop(1, 'rgba(255,110,40,0)');
       ctx.fillStyle = glow;
       ctx.fillRect(0, 0, w, h);
     }
 
-    // オーロラ(ステージ5以降で表示)
+    // オーロラ(ステージ5以降、常時。ゆっくり波打つように動く)
     if (unlockedStage >= 5) {
       ctx.lineWidth = 8;
       visual.auroraColors.forEach((color, i) => {
@@ -358,9 +424,9 @@ export function registerRenderLayers(engine, config) {
     ctx.fillStyle = theme.sea;
     ctx.fillRect(0, h * 0.6, w, h * 0.4);
 
-    // 黄金ステージ: 海面に金色のハイライト
-    if (theme.mood === 'golden') {
-      ctx.fillStyle = 'rgba(255,213,74,0.12)';
+    // 黄金ステージ(ステージ6、海面に金色のハイライト)
+    if (unlockedStage >= 6) {
+      ctx.fillStyle = 'rgba(255,213,74,0.14)';
       ctx.fillRect(0, h * 0.6, w, h * 0.4);
     }
   }, 0);
@@ -441,11 +507,52 @@ export function registerRenderLayers(engine, config) {
     ctx.arc(bowX + 18, bowY - 30, 3, 0, Math.PI * 2);
     ctx.fill();
 
+    // 船尾の炎(ステージ3以降、常時。ゆらめくアニメーション。「なぜ燃えているか」は説明しない)
+    if (unlockedStage >= 3) {
+      const sternX = shipX - shipW / 2;
+      const sternY = shipY + shipH * 0.15;
+      const flicker = visual.fire.flickerSpeed;
+      const flameCount = 5;
+      for (let i = 0; i < flameCount; i++) {
+        const t = performance.now() / 1000;
+        const wobble = Math.sin(t * flicker + i * 1.7) * 6;
+        const heightJitter = 18 + Math.sin(t * flicker * 1.3 + i) * 8 + speedRatio * 10;
+        const fx = sternX - i * 7 + wobble * 0.3;
+        const fy = sternY;
+        ctx.fillStyle = visual.fire.colors[i % visual.fire.colors.length];
+        ctx.globalAlpha = 0.85 - i * 0.12;
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.quadraticCurveTo(fx + wobble, fy - heightJitter, fx, fy - heightJitter * 1.6);
+        ctx.quadraticCurveTo(fx - wobble, fy - heightJitter, fx, fy);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // オール(木製シャフト): タップ速度に応じて回転速度と振れ幅が増す(漕いでいる感を表現)
     const oarSpeed = 4 + speedRatio * 18;
     const oarAngle = Math.sin(performance.now() / (1000 / oarSpeed)) * (0.5 + speedRatio * 0.5);
     const oarPivotX = shipX;
     const oarPivotY = shipY - shipH * 0.1;
+
+    // オールの残像(ステージ2以降。直近の角度を薄く重ね描きしてモーションブラー風にする)
+    if (unlockedStage >= 2) {
+      oarAngleHistory.forEach((prevAngle, i) => {
+        ctx.strokeStyle = visual.ship.oarColor;
+        ctx.globalAlpha = 0.12 * (i + 1);
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(oarPivotX, oarPivotY);
+        ctx.lineTo(oarPivotX + Math.cos(prevAngle) * 56, oarPivotY - Math.sin(prevAngle) * 56 - 10);
+        ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+    }
+    oarAngleHistory.shift();
+    oarAngleHistory.push(oarAngle);
+
     ctx.strokeStyle = visual.ship.oarColor;
     ctx.lineWidth = 6;
     ctx.beginPath();
@@ -454,13 +561,16 @@ export function registerRenderLayers(engine, config) {
     ctx.stroke();
 
     // Haaland風2Dカートゥーンキャラクター(顔と上半身を大きく強調)。
-    // ステージ解放が進むほどオーラ・表情・スケールが変化し、怪物的な存在感を増す。
+    // ステージ解放が進むほどオーラ・表情・スケールが連続的に変化し、
+    // 「普通の人間ではなくなっていく」エスカレーションを表現する。
     const stageScale = visual.player.stageScale[unlockedStage] ?? 1;
     const playerScale = visual.player.baseScale * stageScale * (1 + speedRatio * 0.06);
     const hairSway = Math.sin(performance.now() / 300) * (2 + speedRatio * 6);
     const bobOffset = Math.sin(performance.now() / 450) * (2 + speedRatio * 3);
     const auraColor = visual.player.auraColors[unlockedStage] || null;
-    const mood = currentTheme.mood;
+    const intensity = unlockedStage / 6; // 0(通常)〜1(Ballon d'Or)で連続的に表情が変化
+    const theme = visual.backgroundStages[unlockedStage] || visual.backgroundStages[0];
+    const mouthIntense = theme.mood === 'fire' || theme.mood === 'thunder' || theme.mood === 'golden';
     // キャラクターのローカル座標(26, -4)がオールの持ち手(oarPivot)と一致するよう原点を逆算する
     const charOriginX = oarPivotX - 26 * playerScale;
     const charOriginY = oarPivotY + 4 * playerScale;
@@ -469,21 +579,21 @@ export function registerRenderLayers(engine, config) {
       armAngle: oarAngle,
       hairSway,
       bobOffset,
-      mood,
-      eyeFlash: mood === 'thunder',
+      intensity,
+      mouthIntense,
+      eyeFlash: theme.mood === 'thunder',
       auraColor,
       victoryPose: unlockedStage >= 6,
       palette: visual.player
     });
   }, 1);
 
-
   // レイヤー2: パーティクル
   engine.registerLayer('particles', (ctx) => {
     engine.particle.render(ctx);
   }, 2);
 
-  // レイヤー3: 画面フラッシュ(炎/雷/Ballon d'Or演出でcamera-system.jsが発火)
+  // レイヤー3: 画面フラッシュ(炎/雷/Ballon d'Or演出や雷のランダム発生で発火)
   engine.registerLayer('flash', (ctx, dt, w, h) => {
     if (flashAlpha <= 0) return;
     flashElapsed += dt;

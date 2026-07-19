@@ -10,6 +10,7 @@ import { createUnlockSystem } from './systems/unlock-system.js';
 import { createScoreSystem } from './systems/score-system.js';
 import { createCameraSystem } from './systems/camera-system.js';
 import { createTapFeedbackSystem } from './systems/tap-feedback-system.js';
+import { createWeatherSystem } from './systems/weather-system.js';
 import { createEndingSystem } from './systems/ending-system.js';
 import { registerRenderLayers } from './scene.js';
 import { buildGameUI } from './ui.js';
@@ -31,6 +32,7 @@ export function startGame(canvas, uiRoot) {
   createScoreSystem(engine.bus, gameConfig);
   createCameraSystem(engine.bus, gameConfig);
   createTapFeedbackSystem(engine.bus, gameConfig);
+  createWeatherSystem(engine.bus, gameConfig);
   createEndingSystem(engine.bus, gameConfig, engine, {
     onRestart: () => restart()
   });

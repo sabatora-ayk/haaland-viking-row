@@ -46,11 +46,15 @@ export default {
     player: {
       // [2Dカートゥーン改修] 疑似ピクセルアート(pixelSize)は廃止し、
       // ベクター描画用の色パレット・ステージ別スケール・オーラ色をデータ駆動で定義する。
+      // [表情改修] 眉は金髪に合わせたブロンド系、目は白目+青い虹彩に変更し、
+      // 遠目でも「金髪碧眼」と分かるコントラストを確保した。
       hairColor: '#f5d36a',
       hairShadow: '#d9ad3f',
       skinColor: '#f3c98b',
-      browColor: '#3a2410',
-      eyeColor: '#2a1a0a',
+      browColor: '#e8c468',
+      eyeWhiteColor: '#ffffff',
+      eyeColor: '#5aa9e6',
+      eyePupilColor: '#1a2a3a',
       mouthColor: '#5a1010',
       jerseyColor: '#c8102e',
       jerseyShadow: '#8a0b1f',
@@ -69,6 +73,20 @@ export default {
         5: 'rgba(160,120,255,0.4)',
         6: 'rgba(255,213,74,0.6)'
       }
+    },
+
+    // [エスカレーション改修] 炎はステージ3以降、雷はステージ4以降、船尾から
+    // 継続的にアニメーションする。色・揺らぎ速度・発生間隔はここで一元管理する。
+    fire: {
+      colors: ['#ffce54', '#ff9a3c', '#ff6a2b', '#c8321a'],
+      flickerSpeed: 9
+    },
+    lightning: {
+      minIntervalMs: 1600,
+      maxIntervalMs: 4000,
+      boltColor: 'rgba(255,255,255,0.95)',
+      flashColor: 'rgba(255,255,255,0.45)',
+      cloudColor: 'rgba(20,20,35,0.35)'
     },
 
     ui: {
@@ -137,7 +155,9 @@ export default {
     },
     se: {
       unlock: 'assets/audio/se-unlock.mp3',
-      ballonDor: 'assets/audio/se-ballon-dor.mp3'
+      ballonDor: 'assets/audio/se-ballon-dor.mp3',
+      row: 'assets/audio/se-row.mp3',
+      thunder: 'assets/audio/se-thunder.mp3'
     },
     volume: { bgm: 0.5, se: 0.8 }
   },

@@ -85,6 +85,55 @@ haaland-viking-row/
 3. `src/scene.js`, `src/systems/` のルールを必要に応じて調整
 4. `engine/` は無変更で再利用
 
+## エスカレーション演出の全面強化（v0.4.0）
+
+「普通に漕ぐHaaland」が、タップするほど徐々に超常的な存在へエスカレーションしていく
+体験を中心に据えて改修した。最大の変更点は、演出を**累積型**にしたこと。
+これまでは最新到達ステージの`mood`で背景演出を丸ごと切り替えていたが、
+`unlockedStage >= N`のしきい値判定に変更し、上位ステージに到達しても
+下位ステージの演出(炎・雷・オーロラ等)を消さず重ね続けるようにした。
+
+### 変更したファイル（今回のみ）
+
+| ファイル | 変更内容 |
+|---|---|
+| `config/game-config.js` | `visual.player.browColor`を暗色→ブロンド系、`eyeColor`を暗色→青系に修正(白目+虹彩+瞳孔の3層構造に変更)。`visual.fire`(炎の色・揺らぎ速度)、`visual.lightning`(雷の発生間隔・色)を新設。`audio.se.row`/`audio.se.thunder`を追加 |
+| `src/scene.js` | 背景演出を累積型(`unlockedStage >= N`)に全面変更。船尾からの継続的な炎アニメーション(ステージ3+)、ランダムな稲妻描画(ステージ4+、`weather-system.js`と連携)、オールのモーションブラー残像(ステージ2+)を追加。キャラクターの目を白目+青い虹彩+瞳孔の3層描画に変更し、`intensity`(0〜1、ステージ進行に比例)で眉の吊り上がり・目の見開き具合を連続的に変化させるようにした |
+| `src/systems/tap-feedback-system.js` | タップごとの漕ぎSE(`row`)をthrottle付きで追加。`engine/utils.js`の汎用`throttle`関数を再利用(engine自体は無変更) |
+| `src/systems/weather-system.js` | **新規**。ステージ4(雷)以降、ランダムな間隔で`effect:trigger`(flash+boltフィールド)と雷鳴SEを発火するタイミング制御を担当。雷に対応するstageIdは`config.effects`から動的に導出し、ハードコードしていない |
+| `src/game.js` | `weather-system`のimportと登録を追加(1行) |
+
+`engine/`・`src/ui.js`・`src/main.js`・`style.css`・`index.html`・
+`src/systems/unlock-system.js`・`score-system.js`・`ending-system.js`・`camera-system.js`は
+今回のターンでは無変更(タイムスタンプで確認済み)。
+
+### Stage 0〜6の演出内容(累積型)
+
+| Stage | 新たに加わる演出 | 累積して残る演出 |
+|---|---|---|
+| 0 | 静かなフィヨルド、通常の漕ぎ、眠そうな表情 | - |
+| 1 | 水しぶき増加、船速上昇 | Stage0 |
+| 2 | オール高速回転+モーションブラー残像、速度線、髪が大きく揺れる | Stage0-1 |
+| 3 | 船尾から継続的な炎(揺らめくアニメーション)、赤い光暈、口が力強く開く | Stage0-2 |
+| 4 | 雷雲、ランダムな稲妻+画面フラッシュ+雷鳴SE、目が一瞬フラッシュ | Stage0-3(炎は消えない) |
+| 5 | オーロラ(ゆっくり波打つ)、星空 | Stage0-4(炎・雷は消えない) |
+| 6 | 黄金の海面ハイライト、Ballon d'Orバナー、勝利ポーズ、大量の金パーティクル | Stage0-5全て(炎・雷・オーロラが同時に画面に存在) |
+
+### 既存ゲーム性の維持
+
+タップ判定・速度計算・Distance/Combo/ROW POWER・ステージ解放閾値・Replay・
+ベストスコア保存・BGM再生タイミングは`src/systems/unlock-system.js`
+`score-system.js`/`ending-system.js`/`src/ui.js`/`src/main.js`を一切変更していないため無傷。
+
+### 今回の設計上の逸脱・既知の問題
+
+- `weather-system.js`の雷タイミングは`render:frame`イベントで毎フレームチェックする実装のため、
+  厳密なタイマーではなくフレームレートに軽く依存する(60fpsを前提にした場合、実用上は問題ない)
+- 稲妻の閃光と`effect:trigger`のflashフィールドは共有チャンネルのため、炎ステージの遷移フラッシュと
+  雷のランダムフラッシュが理論上ごく短時間で重複する可能性があるが、視覚的な破綻はない
+- 炎・雷・オーロラを常時重ね描きする分、Stage5-6ではcanvas描画コールがStage0時より増えるが、
+  いずれも単純な図形描画のみでモバイル環境でも許容範囲と判断した(FPS表示はconfig.ui.showFpsInDevで確認可能)
+
 ## キャラクター2Dカートゥーン改修（v0.3.0）
 
 疑似ピクセルアート(13×16ドット)を廃止し、canvasのPath/ベジェ曲線による
